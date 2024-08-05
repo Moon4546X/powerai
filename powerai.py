@@ -5,6 +5,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import webbrowser
 from datetime import datetime
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import LabelEncoder
+from sklearn.metrics import accuracy_score
 
 class PowerAIApp:
     def __init__(self, root):
@@ -57,7 +61,7 @@ class PowerAIApp:
         self.graph_button.pack(pady=10)
         
         # Seasonality display
-        self.seasonality_display = tk.Text(self.frame2, height=20)
+        self.seasonality_display = tk.Text(self.frame2, height=10)
         self.seasonality_display.pack(fill='both', expand=True)
         
         # Save data and graph
@@ -66,6 +70,13 @@ class PowerAIApp:
         
         self.save_graph_button = tk.Button(self.frame2, text="Save Graph", command=self.save_graph)
         self.save_graph_button.pack(pady=10)
+        
+        # Machine learning prediction
+        self.ml_button = tk.Button(self.frame2, text="Predict Best Selling Product", command=self.predict_best_selling_product)
+        self.ml_button.pack(pady=10)
+        
+        self.ml_display = tk.Text(self.frame2, height=10)
+        self.ml_display.pack(fill='both', expand=True)
 
     def redirect_about(self):
         webbrowser.open("https://achintya-iota.vercel.app")
@@ -165,6 +176,39 @@ class PowerAIApp:
             self.seasonality_display.insert(tk.END, seasonal_data.to_string())
         except Exception as e:
             messagebox.showerror("Error", f"Failed to detect seasonality: {str(e)}")
+
+    def predict_best_selling_product(self):
+        try:
+            df = self.filtered_df.copy()
+            df['Month'] = df['Date'].dt.month
+            X = df[['Month']]
+            y = df['Product']
+            
+            # Encoding the labels
+            le = LabelEncoder()
+            y_encoded = le.fit_transform(y)
+            
+            # Split the data
+            X_train, X_test, y_train, y_test = train_test_split(X, y_encoded, test_size=0.2, random_state=42)
+            
+            # Train the model
+            model = RandomForestClassifier(n_estimators=100, random_state=42)
+            model.fit(X_train, y_train)
+            
+            # Make predictions
+            y_pred = model.predict(X_test)
+            accuracy = accuracy_score(y_test, y_pred)
+            
+            # Determine the best-selling product for each month
+            df['Prediction'] = le.inverse_transform(model.predict(df[['Month']]))
+            best_selling_products = df.groupby('Month')['Prediction'].agg(lambda x: x.value_counts().index[0])
+            
+            # Display the results
+            self.ml_display.delete(1.0, tk.END)
+            self.ml_display.insert(tk.END, f"Accuracy: {accuracy:.2f}\n")
+            self.ml_display.insert(tk.END, best_selling_products.to_string())
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to predict best selling product: {str(e)}")
 
 if __name__ == "__main__":
     root = tk.Tk()
